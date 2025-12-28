@@ -20,7 +20,26 @@
         "height": 550
       },
       "resizable": true
-    }
+    },
+    "about": "Classic snake game - eat food and grow longer!",
+    "help": [
+      "Arrow keys to move",
+      "Eat food to grow",
+      "Avoid walls and yourself"
+    ],
+    "docs": "https://zos-apps.github.io/snake",
+    "site": "https://github.com/zos-apps/snake",
+    "shortcuts": [
+      "↑↓←→ Direction",
+      "P Pause",
+      "N New game"
+    ],
+    "features": [
+      "Classic gameplay",
+      "Score tracking",
+      "Speed increase",
+      "High scores"
+    ]
   },
   "scripts": {
     "build": "tsup",
@@ -53,5 +72,13 @@
     "snake",
     "macos",
     "desktop"
-  ]
+  ],
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/zos-apps"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
 }
