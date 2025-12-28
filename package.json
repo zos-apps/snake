@@ -1,5 +1,5 @@
 {
-  "name": "@anthropic/snake",
+  "name": "@zos-apps/snake",
   "version": "1.0.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -11,9 +11,14 @@
     "icon": "🐍",
     "category": "games",
     "description": "Classic snake game",
-    "permissions": ["storage.local"],
+    "permissions": [
+      "storage.local"
+    ],
     "window": {
-      "defaultSize": { "width": 500, "height": 550 },
+      "defaultSize": {
+        "width": 500,
+        "height": 550
+      },
       "resizable": true
     }
   },
@@ -30,5 +35,23 @@
     "@types/react-dom": "^18.3.0",
     "tsup": "^8.3.5",
     "typescript": "^5.7.2"
-  }
+  },
+  "description": "Classic snake game",
+  "homepage": "https://zos-apps.github.io/snake",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zos-apps/snake.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zos-apps/snake/issues"
+  },
+  "author": "Hanzo AI",
+  "license": "MIT",
+  "keywords": [
+    "zos",
+    "app",
+    "snake",
+    "macos",
+    "desktop"
+  ]
 }
