@@ -1,28 +1,39 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-
-interface SnakeProps {
-  onClose: () => void;
-}
-
-type Direction = 'UP' | 'DOWN' | 'LEFT' | 'RIGHT';
-type Point = { x: number; y: number };
+import { useState, useCallback, useRef } from 'react';
+import type { AppProps, Point } from '@zos-apps/config';
+import { useKeyboard, useGameLoop, useHighScore, useGameState } from '@zos-apps/config';
 
 const GRID_SIZE = 20;
 const CELL_SIZE = 20;
 const INITIAL_SPEED = 150;
 
-const Snake: React.FC<SnakeProps> = ({ onClose }) => {
+// Key mappings for direction + controls
+const DIRECTION_KEYS = {
+  ArrowUp: 'UP', w: 'UP', W: 'UP',
+  ArrowDown: 'DOWN', s: 'DOWN', S: 'DOWN',
+  ArrowLeft: 'LEFT', a: 'LEFT', A: 'LEFT',
+  ArrowRight: 'RIGHT', d: 'RIGHT', D: 'RIGHT',
+} as const;
+
+const CONTROL_KEYS = {
+  ' ': 'toggle',
+  p: 'toggle',
+  P: 'toggle',
+} as const;
+
+type SnakeDirection = 'UP' | 'DOWN' | 'LEFT' | 'RIGHT';
+
+const OPPOSITES: Record<SnakeDirection, SnakeDirection> = {
+  UP: 'DOWN', DOWN: 'UP', LEFT: 'RIGHT', RIGHT: 'LEFT',
+};
+
+const Snake: React.FC<AppProps> = ({ onClose: _onClose }) => {
   const [snake, setSnake] = useState<Point[]>([{ x: 10, y: 10 }]);
   const [food, setFood] = useState<Point>({ x: 15, y: 15 });
-  const [direction, setDirection] = useState<Direction>('RIGHT');
-  const [gameOver, setGameOver] = useState(false);
-  const [score, setScore] = useState(0);
-  const [highScore, setHighScore] = useState(() => {
-    const saved = localStorage.getItem('zos-snake-highscore');
-    return saved ? parseInt(saved) : 0;
-  });
-  const [isPaused, setIsPaused] = useState(true);
+  const [direction, setDirection] = useState<SnakeDirection>('RIGHT');
   const [speed, setSpeed] = useState(INITIAL_SPEED);
+  
+  const { highScore, updateHighScore } = useHighScore('snake');
+  const { score, isGameOver, isPaused, addScore, gameOver, togglePause, reset } = useGameState();
   
   const directionRef = useRef(direction);
   directionRef.current = direction;
@@ -43,15 +54,11 @@ const Snake: React.FC<SnakeProps> = ({ onClose }) => {
     setSnake(initialSnake);
     setFood(generateFood(initialSnake));
     setDirection('RIGHT');
-    setGameOver(false);
-    setScore(0);
     setSpeed(INITIAL_SPEED);
-    setIsPaused(true);
-  }, [generateFood]);
+    reset();
+  }, [generateFood, reset]);
 
   const moveSnake = useCallback(() => {
-    if (gameOver || isPaused) return;
-
     setSnake(prevSnake => {
       const head = { ...prevSnake[0] };
       const dir = directionRef.current;
@@ -65,13 +72,13 @@ const Snake: React.FC<SnakeProps> = ({ onClose }) => {
 
       // Check wall collision
       if (head.x < 0 || head.x >= GRID_SIZE || head.y < 0 || head.y >= GRID_SIZE) {
-        setGameOver(true);
+        gameOver();
         return prevSnake;
       }
 
       // Check self collision
       if (prevSnake.some(seg => seg.x === head.x && seg.y === head.y)) {
-        setGameOver(true);
+        gameOver();
         return prevSnake;
       }
 
@@ -79,14 +86,9 @@ const Snake: React.FC<SnakeProps> = ({ onClose }) => {
 
       // Check food collision
       if (head.x === food.x && head.y === food.y) {
-        setScore(s => {
-          const newScore = s + 10;
-          if (newScore > highScore) {
-            setHighScore(newScore);
-            localStorage.setItem('zos-snake-highscore', newScore.toString());
-          }
-          return newScore;
-        });
+        const newScore = score + 10;
+        addScore(10);
+        updateHighScore(newScore);
         setFood(generateFood(newSnake));
         setSpeed(s => Math.max(50, s - 2));
       } else {
@@ -95,49 +97,27 @@ const Snake: React.FC<SnakeProps> = ({ onClose }) => {
 
       return newSnake;
     });
-  }, [food, gameOver, isPaused, generateFood, highScore]);
+  }, [food, score, gameOver, addScore, generateFood, updateHighScore]);
 
-  useEffect(() => {
-    const interval = setInterval(moveSnake, speed);
-    return () => clearInterval(interval);
-  }, [moveSnake, speed]);
+  // Game loop using shared hook
+  useGameLoop(moveSnake, speed, !isGameOver && !isPaused);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === ' ') {
-        e.preventDefault();
-        if (gameOver) {
-          resetGame();
-        } else {
-          setIsPaused(p => !p);
-        }
-        return;
-      }
+  // Direction controls using shared hook
+  useKeyboard(DIRECTION_KEYS, (action) => {
+    if (isPaused || isGameOver) return;
+    const newDir = action as SnakeDirection;
+    if (OPPOSITES[newDir] !== directionRef.current) {
+      setDirection(newDir);
+    }
+  }, { enabled: !isGameOver });
 
-      if (isPaused || gameOver) return;
-
-      const keyDirections: Record<string, Direction> = {
-        ArrowUp: 'UP', w: 'UP', W: 'UP',
-        ArrowDown: 'DOWN', s: 'DOWN', S: 'DOWN',
-        ArrowLeft: 'LEFT', a: 'LEFT', A: 'LEFT',
-        ArrowRight: 'RIGHT', d: 'RIGHT', D: 'RIGHT',
-      };
-
-      const newDir = keyDirections[e.key];
-      if (!newDir) return;
-
-      const opposites: Record<Direction, Direction> = {
-        UP: 'DOWN', DOWN: 'UP', LEFT: 'RIGHT', RIGHT: 'LEFT',
-      };
-
-      if (opposites[newDir] !== directionRef.current) {
-        setDirection(newDir);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isPaused, gameOver, resetGame]);
+  // Pause/restart controls
+  useKeyboard(CONTROL_KEYS, (action) => {
+    if (action === 'toggle') {
+      if (isGameOver) resetGame();
+      else togglePause();
+    }
+  });
 
   return (
     <div className="h-full flex flex-col items-center justify-center bg-gray-900 p-4">
@@ -165,10 +145,10 @@ const Snake: React.FC<SnakeProps> = ({ onClose }) => {
         {/* Grid lines */}
         <div className="absolute inset-0 opacity-10">
           {Array(GRID_SIZE).fill(null).map((_, i) => (
-            <div key={i} className="absolute w-full border-t border-green-500" style={{ top: i * CELL_SIZE }} />
+            <div key={`h${i}`} className="absolute w-full border-t border-green-500" style={{ top: i * CELL_SIZE }} />
           ))}
           {Array(GRID_SIZE).fill(null).map((_, i) => (
-            <div key={i} className="absolute h-full border-l border-green-500" style={{ left: i * CELL_SIZE }} />
+            <div key={`v${i}`} className="absolute h-full border-l border-green-500" style={{ left: i * CELL_SIZE }} />
           ))}
         </div>
 
@@ -185,9 +165,7 @@ const Snake: React.FC<SnakeProps> = ({ onClose }) => {
             }}
           >
             {i === 0 && (
-              <div className="w-full h-full flex items-center justify-center text-xs">
-                {direction === 'UP' ? '👀' : direction === 'DOWN' ? '👀' : direction === 'LEFT' ? '👀' : '👀'}
-              </div>
+              <div className="w-full h-full flex items-center justify-center text-xs">👀</div>
             )}
           </div>
         ))}
@@ -206,9 +184,9 @@ const Snake: React.FC<SnakeProps> = ({ onClose }) => {
         </div>
 
         {/* Overlays */}
-        {(isPaused || gameOver) && (
+        {(isPaused || isGameOver) && (
           <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center">
-            {gameOver ? (
+            {isGameOver ? (
               <>
                 <div className="text-4xl mb-4">💀</div>
                 <div className="text-red-500 text-2xl font-bold mb-2">GAME OVER</div>
@@ -220,7 +198,7 @@ const Snake: React.FC<SnakeProps> = ({ onClose }) => {
                 <div className="text-green-400 text-xl mb-2">PAUSED</div>
               </>
             )}
-            <div className="text-gray-400 text-sm">Press SPACE to {gameOver ? 'restart' : 'continue'}</div>
+            <div className="text-gray-400 text-sm">Press SPACE to {isGameOver ? 'restart' : 'continue'}</div>
           </div>
         )}
       </div>
